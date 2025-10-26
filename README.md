@@ -1,160 +1,127 @@
-# Stellar RWA Platform
+# Stellar RWA - Tiered Bond Platform
 
-An amazing sleek frontend for RWA-backed structured products/tiered bonds with DEFINDEX integration built on Stellar.
+> RWA-backed structured products with automated waterfall distribution on Stellar
 
-## 🚀 Features
-
-### Core Functionality
-- **Tiered Bond Products**: Senior/Junior tier selection with different risk profiles
-- **Automated Cash Flow Distribution**: Smart contract-based allocation with priority mechanisms
-- **Risk Isolation**: Junior tier absorbs losses first, protecting Senior investors
-- **DEFINDEX Integration**: Real-time market analytics and insights
-- **Soroban Smart Contracts**: Advanced contract-level clearing and distribution logic
-
-### Technical Features
-- **Modern UI/UX**: Sleek, responsive design with smooth animations
-- **Real-time Analytics**: Live portfolio tracking and yield monitoring
-- **Compliance Ready**: Built-in audit trails and regulatory reporting
-- **Interactive Dashboard**: Comprehensive portfolio management tools
-- **Contract Management**: Deploy, interact, and monitor Soroban smart contracts
-
-## 🏗️ Architecture
-
-### Frontend Stack
-- **Next.js 14**: React framework with App Router
-- **TypeScript**: Type-safe development
-- **Tailwind CSS**: Utility-first styling
-- **Framer Motion**: Smooth animations and transitions
-- **Radix UI**: Accessible component primitives
-
-### Key Components
-- **Hero Section**: Stunning landing page with product showcase
-- **Product Selection**: Interactive Senior/Junior tier selection
-- **Dashboard**: Portfolio overview, yield tracking
-- **Analytics**: DEFINDEX integration with market insights
-- **Compliance**: Audit trails and regulatory reporting
-- **Soroban Integration**: Smart contract deployment and interaction
-
-## 🎨 Design System
-
-### Color Palette
-- **Primary**: Blue to Purple gradients
-- **Success**: Green tones for positive metrics
-- **Warning**: Orange/Yellow for medium risk
-- **Danger**: Red for high risk
-- **Neutral**: Gray scale for text and backgrounds
-
-### Typography
-- **Font**: Inter (Google Fonts)
-- **Headings**: Bold, large sizes for impact
-- **Body**: Clean, readable text with proper hierarchy
-
-### Components
-- **Glass Effect**: Frosted glass styling with backdrop blur
-- **Gradient Backgrounds**: Dynamic color transitions
-- **Card Hover Effects**: Subtle animations on interaction
-- **Status Indicators**: Color-coded status and metrics
-
-## 📱 Responsive Design
-
-### Breakpoints
-- **Mobile**: 320px - 768px
-- **Tablet**: 768px - 1024px
-- **Desktop**: 1024px+
-
-### Mobile Features
-- **Touch-friendly**: Large tap targets
-- **Swipe Navigation**: Smooth transitions
-- **Collapsible Sections**: Space-efficient layouts
-- **Optimized Images**: Fast loading and crisp display
-
-## 🔧 Installation
-
-```bash
-# Install dependencies
-npm install
-
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-```
-
-## 📊 Key Metrics Display
-
-### Portfolio Overview
-- **Total Value**: Real-time portfolio valuation
-- **Yield Performance**: APY tracking and projections
-- **Risk Assessment**: Comprehensive risk metrics
-- **Transaction History**: Complete audit trail
-
-### Market Analytics
-- **DEFINDEX Integration**: Live market data
-- **Yield Comparison**: Senior vs Junior performance
-- **Market Trends**: Historical and projected data
-- **Top Performers**: Best performing assets
-
-## 🛡️ Security & Compliance
-
-### Smart Contract Security
-- **Audited Contracts**: Professional security audits
-- **Gas Optimization**: Efficient transaction processing
-- **Error Handling**: Robust error management
-- **Access Controls**: Multi-signature requirements
-
-### Compliance Features
-- **Audit Trails**: Complete transaction logging
-- **Regulatory Reporting**: Automated compliance checks
-- **Risk Monitoring**: Real-time risk assessment
-- **Transparency**: Public contract verification
-
-## 🚀 Future Enhancements
-
-### Planned Features
-- **Mobile App**: Native iOS/Android applications
-- **Advanced Analytics**: Machine learning insights
-- **Cross-chain Support**: Multi-blockchain integration
-- **Institutional Tools**: Advanced portfolio management
-
-### Technical Improvements
-- **Performance Optimization**: Faster loading times
-- **Accessibility**: Enhanced accessibility features
-- **Internationalization**: Multi-language support
-- **API Integration**: Third-party service connections
-
-## 📈 Performance
-
-### Optimization
-- **Code Splitting**: Lazy loading for better performance
-- **Image Optimization**: Next.js automatic optimization
-- **Caching**: Efficient data caching strategies
-- **Bundle Size**: Optimized JavaScript bundles
-
-### Monitoring
-- **Real-time Metrics**: Live performance monitoring
-- **Error Tracking**: Comprehensive error reporting
-- **User Analytics**: Usage pattern analysis
-- **Performance Metrics**: Core Web Vitals tracking
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our contributing guidelines for details.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🔗 Links
-
-- **Documentation**: [Link to docs]
-- **API Reference**: [Link to API docs]
-- **Support**: [Link to support]
-- **Community**: [Link to community]
+**[🎥 Demo Video](#) | [🚀 Live Demo](#) | [📜 Smart Contract](#)**
 
 ---
 
-Built with ❤️ for the Stellar ecosystem
+## What It Does
+
+A platform for investing in Real World Asset (RWA) backed bonds with two risk tiers:
+- **Senior Tier**: Lower risk, steady returns (8.5% APY)
+- **Junior Tier**: Higher risk, higher returns (15.2% APY)
+
+When losses occur, Junior investors absorb them first, protecting Senior investors. This is standard in traditional finance but now on-chain with full transparency.
+
+## Screenshots
+
+### Landing Page
+![Landing Page](#)
+
+### Waterfall Distribution (The Key Feature!)
+![Waterfall](#)
+*Interactive simulation showing how cash flows are distributed and losses absorbed*
+
+### Investment Flow
+![Investment](#)
+
+### Portfolio Dashboard
+![Dashboard](#)
+
+## How It Works
+
+### Smart Contract Logic
+
+The platform uses Soroban smart contracts on Stellar to handle:
+
+1. **Token Minting**: Creates Senior (SRN) and Junior (JRN) tokens representing bond positions
+2. **Cash Flow Distribution**: Automatically distributes returns with Senior priority
+3. **Loss Absorption**: Junior tier takes losses first, protecting Senior investors
+
+**Contract Address**: `[Contract ID here]`
+**Block Explorer**: `[Stellar Expert link here]`
+
+### Key Features
+
+**Interactive Waterfall Diagram**: Move sliders to see real-time cash flow distribution and loss scenarios
+
+**Loss Simulation**: Four scenarios (Normal, Minor, Moderate, Severe) that show step-by-step how losses affect each tier
+
+**Freighter Wallet Integration**: Connect wallet, invest in tiers, mint tokens, and track portfolio - all on Stellar testnet
+
+**Secondary Market**: Trade tier tokens with order book and price feeds
+
+## Tech Stack
+
+- **Frontend**: Next.js 14, TypeScript, Tailwind CSS
+- **Blockchain**: Stellar (Soroban smart contracts)
+- **Wallet**: Freighter API
+- **Charts**: Recharts
+- **Animations**: Framer Motion
+
+## Project Structure
+
+```
+├── app/                    # Next.js pages
+│   ├── page.tsx           # Landing page
+│   ├── dashboard/         # Portfolio dashboard
+│   ├── admin/             # Admin panel
+│   └── soroban/           # Contract interaction
+├── components/            # React components
+│   ├── WalletConnection   # Freighter integration
+│   ├── WaterfallDiagram   # Cash flow visualization
+│   ├── LossSimulation     # Interactive loss scenarios
+│   └── SecondaryMarket    # Trading interface
+└── contexts/
+    └── WalletContext      # Wallet state management
+```
+
+## Run Locally
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:3000
+
+## What Makes This Special
+
+Most DeFi platforms have simple lending/borrowing. This brings **structured finance** from TradFi to crypto:
+
+- **Risk Tranching**: Different risk/return profiles
+- **Waterfall Distribution**: Priority-based payouts
+- **RWA Backing**: Real assets (US Treasuries) as collateral
+- **Full Transparency**: All on-chain, auditable
+
+Traditional structured products are complex and opaque. We make them simple and transparent.
+
+## Demo Video
+
+[📹 Watch Full Walkthrough](#)
+
+In this video I show:
+- How the waterfall works
+- Connecting Freighter wallet
+- Investing in tiers
+- Real transactions on testnet
+- Portfolio tracking
+- Code structure walkthrough
+
+## Live Demo
+
+**Try it yourself**: [https://stellar-rwa.vercel.app](#)
+
+Need testnet XLM? Use the [Stellar Laboratory Faucet](https://laboratory.stellar.org/#account-creator?network=test)
+
+## Future Plans
+
+- Multi-asset pools (corporate bonds, real estate)
+- Automated rebalancing
+- Governance for tier parameters
+- Cross-chain bridges
+
+---
+
+Built for [Stellar Hackathon Name] | [Your Name] | 2025
