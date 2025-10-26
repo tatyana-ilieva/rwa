@@ -1,20 +1,24 @@
-'use client'
+ 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import {
-  Networks,
-  TransactionBuilder,
-  Operation,
-  Asset,
-  Memo,
-  Horizon
-} from '@stellar/stellar-sdk'
+import { Networks } from '@stellar/stellar-sdk'
 import {
   requestAccess,
-  isConnected,
+  isConnected as checkIsConnected,
   getAddress,
-  signTransaction
+  signTransaction as freighterSignTransaction
 } from '@stellar/freighter-api'
+import {
+  tokenHelpers,
+  blendPoolHelpers,
+  submitSignedTransaction,
+  parseTokenAmount,
+  formatTokenAmount
+} from '@/utils/contractHelpers'
+import { BLEND_CONTRACTS, TOKEN_CONTRACTS } from '@/config/contracts'
+
+const HORIZON_URL = process.env.NEXT_PUBLIC_HORIZON_URL || 'https://horizon-testnet.stellar.org'
+const DEBUG = process.env.NEXT_PUBLIC_WALLET_DEBUG === '1'
 
 interface WalletContextType {
   isConnected: boolean
@@ -26,6 +30,12 @@ interface WalletContextType {
   createTrancheTokens: (amount: number, trancheType: 'senior' | 'junior') => Promise<string>
   investInTranche: (amount: number, trancheType: 'senior' | 'junior') => Promise<string>
   getAccountBalance: () => Promise<string>
+  getTokenBalance: (tokenAddress: string) => Promise<string>
+  supplyToPool: (tokenAddress: string, amount: string) => Promise<string>
+  withdrawFromPool: (tokenAddress: string, amount: string) => Promise<string>
+  borrowFromPool: (tokenAddress: string, amount: string) => Promise<string>
+  repayToPool: (tokenAddress: string, amount: string) => Promise<string>
+  getPoolPosition: () => Promise<any>
   isLoading: boolean
   error: string | null
 }
@@ -34,14 +44,23 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
 export const useWallet = () => {
   const context = useContext(WalletContext)
-  if (context === undefined) {
-    throw new Error('useWallet must be used within a WalletProvider')
-  }
+  if (context === undefined) throw new Error('useWallet must be used within a WalletProvider')
   return context
 }
 
-interface WalletProviderProps {
-  children: ReactNode
+interface WalletProviderProps { children: ReactNode }
+
+async function submitSignedXDR(signedXDR: string) {
+  const res = await fetch(`${HORIZON_URL}/transactions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ tx: signedXDR }).toString()
+  })
+  if (!res.ok) {
+    const txt = await res.text()
+    throw new Error(`Horizon submit error: ${res.status} ${txt}`)
+  }
+  return res.json()
 }
 
 export const WalletProvider = ({ children }: WalletProviderProps) => {
@@ -51,209 +70,111 @@ export const WalletProvider = ({ children }: WalletProviderProps) => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    checkConnection()
-  }, [])
+  useEffect(() => { checkConnection() }, [])
 
   const checkConnection = async () => {
     try {
-      const response = await isConnected()
-
-      if (response.error) {
-        console.log('Freighter error:', response.error)
-        return
-      }
-
-      if (response.isConnected) {
-        const addressResponse = await getAddress()
-
-        if (addressResponse.error) {
-          console.log('Failed to get address:', addressResponse.error)
-          return
-        }
-
-        const key = addressResponse.address
-        setPublicKey(key)
-        setIsConnected(true)
-
-        // Fetch balance with the key directly
-        if (key) {
-          const server = new Horizon.Server('https://horizon-testnet.stellar.org')
-          try {
-            const account = await server.loadAccount(key)
-            const xlmBalance = account.balances.find(
-              (balance: any) => balance.asset_type === 'native'
-            )
-            setBalance(xlmBalance?.balance || '0')
-          } catch (err) {
-            console.log('Account not found on network:', err)
-            setBalance('0')
-          }
-        }
-      }
-    } catch (err) {
-      console.log('Wallet not connected:', err)
-    }
+      const resp = await checkIsConnected()
+      if (DEBUG) console.log('[Wallet] isConnected ->', resp)
+      if (resp.error || !resp.isConnected) return
+      const addressResp = await getAddress()
+      if (addressResp.error) return
+      setPublicKey(addressResp.address)
+      setIsConnected(true)
+      await getAccountBalance()
+    } catch (err) { if (DEBUG) console.error('[Wallet] checkConnection error', err) }
   }
 
   const connect = async () => {
     try {
-      setIsLoading(true)
-      setError(null)
-
-      // Request access to the wallet
-      const response = await requestAccess()
-
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to connect to Freighter')
-      }
-
-      const key = response.address
-      setPublicKey(key)
+      setIsLoading(true); setError(null)
+      const resp = await requestAccess()
+      if ((resp as any).error) throw new Error((resp as any).error?.message || 'Failed to connect')
+      setPublicKey((resp as any).address || null)
       setIsConnected(true)
-
-      // Fetch balance with the key directly
-      if (key) {
-        const server = new Horizon.Server('https://horizon-testnet.stellar.org')
-        try {
-          const account = await server.loadAccount(key)
-          const xlmBalance = account.balances.find(
-            (balance: any) => balance.asset_type === 'native'
-          )
-          setBalance(xlmBalance?.balance || '0')
-        } catch (err) {
-          console.log('Account not found on network:', err)
-          setBalance('0')
-        }
-      }
-    } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to connect wallet'
-      setError(errorMessage)
-      console.error('Wallet connection error:', err)
-      throw err
-    } finally {
-      setIsLoading(false)
-    }
+      await getAccountBalance()
+    } catch (err: any) { setError(err?.message || 'Failed to connect'); throw err } finally { setIsLoading(false) }
   }
 
-  const disconnect = () => {
-    setIsConnected(false)
-    setPublicKey(null)
-    setBalance('0')
-    setError(null)
-  }
+  const disconnect = () => { setIsConnected(false); setPublicKey(null); setBalance('0'); setError(null) }
 
   const getAccountBalance = async (): Promise<string> => {
     if (!publicKey) return '0'
-
     try {
-      const server = new Horizon.Server('https://horizon-testnet.stellar.org')
-      const account = await server.loadAccount(publicKey)
-      const xlmBalance = account.balances.find(
-        (balance: any) => balance.asset_type === 'native'
-      )
-      const balanceValue = xlmBalance?.balance || '0'
-      setBalance(balanceValue)
-      return balanceValue
-    } catch (err) {
-      console.error('Failed to fetch balance:', err)
-      return '0'
-    }
+      const res = await fetch(`${HORIZON_URL}/accounts/${publicKey}`)
+      if (!res.ok) return '0'
+      const data = await res.json()
+      const xlm = data.balances?.find((b: any) => b.asset_type === 'native')
+      const value = xlm?.balance || '0'
+      setBalance(value)
+      return value
+    } catch (err) { if (DEBUG) console.error('[Wallet] getAccountBalance error', err); return '0' }
   }
 
   const signTransactionInternal = async (transactionXDR: string): Promise<string> => {
     try {
-      const response = await signTransaction(transactionXDR, {
-        networkPassphrase: Networks.TESTNET
-      })
-
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to sign transaction')
-      }
-
-      return response.signedTxXdr
-    } catch (err: any) {
-      console.error('Failed to sign transaction:', err)
-      throw new Error(err?.message || 'Failed to sign transaction')
-    }
+      const response = await freighterSignTransaction(transactionXDR, { networkPassphrase: Networks.TESTNET })
+      if (DEBUG) console.log('[Wallet] freighter sign ->', response)
+      return (response as any).signedTxXdr || (response as any).signedTransaction || ''
+    } catch (err) { if (DEBUG) console.error('[Wallet] freighter sign error ->', err); throw err }
   }
 
-  const createTrancheTokens = async (amount: number, trancheType: 'senior' | 'junior') => {
+  const getTokenBalance = async (tokenAddress: string): Promise<string> => {
+    if (!publicKey) return '0'
+    try { const b = await tokenHelpers.getBalance(tokenAddress, publicKey); return formatTokenAmount(b) } catch (err) { if (DEBUG) console.error(err); return '0' }
+  }
+
+  const supplyToPool = async (tokenAddress: string, amount: string): Promise<string> => {
     if (!publicKey) throw new Error('Wallet not connected')
+    try { setIsLoading(true); setError(null); const amountParsed = parseTokenAmount(amount); const pool = BLEND_CONTRACTS.testnetV2Pool; const tx = await blendPoolHelpers.supply(pool, publicKey, tokenAddress, amountParsed); const signedXDR = await signTransactionInternal(tx.toXDR()); const res = await submitSignedTransaction(signedXDR); await getAccountBalance(); return res.hash } catch (err: any) { setError(err?.message || 'Failed to supply to pool'); throw err } finally { setIsLoading(false) }
+  }
 
+  const withdrawFromPool = async (tokenAddress: string, amount: string): Promise<string> => {
+    if (!publicKey) throw new Error('Wallet not connected')
+    try { setIsLoading(true); setError(null); const amountParsed = parseTokenAmount(amount); const pool = BLEND_CONTRACTS.testnetV2Pool; const tx = await blendPoolHelpers.withdraw(pool, publicKey, tokenAddress, amountParsed); const signedXDR = await signTransactionInternal(tx.toXDR()); const res = await submitSignedTransaction(signedXDR); await getAccountBalance(); return res.hash } catch (err: any) { setError(err?.message || 'Failed to withdraw from pool'); throw err } finally { setIsLoading(false) }
+  }
+
+  const borrowFromPool = async (tokenAddress: string, amount: string): Promise<string> => {
+    if (!publicKey) throw new Error('Wallet not connected')
+    try { setIsLoading(true); setError(null); const amountParsed = parseTokenAmount(amount); const pool = BLEND_CONTRACTS.testnetV2Pool; const tx = await blendPoolHelpers.borrow(pool, publicKey, tokenAddress, amountParsed); const signedXDR = await signTransactionInternal(tx.toXDR()); const res = await submitSignedTransaction(signedXDR); await getAccountBalance(); return res.hash } catch (err: any) { setError(err?.message || 'Failed to borrow from pool'); throw err } finally { setIsLoading(false) }
+  }
+
+  const repayToPool = async (tokenAddress: string, amount: string): Promise<string> => {
+    if (!publicKey) throw new Error('Wallet not connected')
+    try { setIsLoading(true); setError(null); const amountParsed = parseTokenAmount(amount); const pool = BLEND_CONTRACTS.testnetV2Pool; const tx = await blendPoolHelpers.repay(pool, publicKey, tokenAddress, amountParsed); const signedXDR = await signTransactionInternal(tx.toXDR()); const res = await submitSignedTransaction(signedXDR); await getAccountBalance(); return res.hash } catch (err: any) { setError(err?.message || 'Failed to repay to pool'); throw err } finally { setIsLoading(false) }
+  }
+
+  const getPoolPosition = async (): Promise<any> => {
+    if (!publicKey) return null
+    try { const pool = BLEND_CONTRACTS.testnetV2Pool; return await blendPoolHelpers.getPosition(pool, publicKey) } catch (err) { if (DEBUG) console.error(err); return null }
+  }
+
+  // Implement tranche-related functions using existing pool supply flow for demo purposes.
+  // Note: Proper tranche minting may require admin-only contract calls; this uses supplyToPool
+  // to move RWA tokens to the pool and acts as an investment for the demo.
+  const createTrancheTokens = async (amount: number, _trancheType: 'senior' | 'junior'): Promise<string> => {
+    if (!publicKey) throw new Error('Wallet not connected')
     try {
-      setIsLoading(true)
-
-      const server = new Horizon.Server('https://horizon-testnet.stellar.org')
-
-      // Build transaction
-      const account = await server.loadAccount(publicKey)
-      const transaction = new TransactionBuilder(account, {
-        fee: '100',
-        networkPassphrase: Networks.TESTNET
-      })
-        .addOperation(
-          Operation.payment({
-            destination: publicKey,
-            asset: Asset.native(),
-            amount: amount.toString()
-          })
-        )
-        .addMemo(Memo.text(`Mint ${trancheType} tranche tokens`))
-        .setTimeout(30)
-        .build()
-
-      // Sign and submit transaction
-      const signedXDR = await signTransactionInternal(transaction.toXDR())
-      const signedTx = TransactionBuilder.fromXDR(signedXDR, Networks.TESTNET)
-      const result = await server.submitTransaction(signedTx as any)
-
-      await getAccountBalance()
-      return result.hash
-    } catch (err) {
-      setError('Failed to create tranche tokens')
-      console.error('Mint error:', err)
+      setIsLoading(true); setError(null)
+      // treat `amount` as decimal units (e.g., 1000 -> "1000")
+      const hash = await supplyToPool(TOKEN_CONTRACTS.RWA_UST, String(amount))
+      return hash
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create tranche tokens')
       throw err
     } finally {
       setIsLoading(false)
     }
   }
 
-  const investInTranche = async (amount: number, trancheType: 'senior' | 'junior') => {
+  const investInTranche = async (amount: number, _trancheType: 'senior' | 'junior'): Promise<string> => {
     if (!publicKey) throw new Error('Wallet not connected')
-
     try {
-      setIsLoading(true)
-
-      const server = new Horizon.Server('https://horizon-testnet.stellar.org')
-
-      // Build investment transaction
-      const account = await server.loadAccount(publicKey)
-      const transaction = new TransactionBuilder(account, {
-        fee: '100',
-        networkPassphrase: Networks.TESTNET
-      })
-        .addOperation(
-          Operation.payment({
-            destination: 'GDEM2VJKPEGKGSPMNWFZQ4QQHU5JS43JENZAZC2O2R7BA5W7G5BTLM3Y', // Pool address
-            asset: Asset.native(),
-            amount: amount.toString()
-          })
-        )
-        .addMemo(Memo.text(`Invest in ${trancheType} tranche`))
-        .setTimeout(30)
-        .build()
-
-      // Sign and submit transaction
-      const signedXDR = await signTransactionInternal(transaction.toXDR())
-      const signedTx = TransactionBuilder.fromXDR(signedXDR, Networks.TESTNET)
-      const result = await server.submitTransaction(signedTx as any)
-
-      await getAccountBalance()
-      return result.hash
-    } catch (err) {
-      setError('Failed to invest in tranche')
-      console.error('Investment error:', err)
+      setIsLoading(true); setError(null)
+      const hash = await supplyToPool(TOKEN_CONTRACTS.RWA_UST, String(amount))
+      return hash
+    } catch (err: any) {
+      setError(err?.message || 'Failed to invest in tranche')
       throw err
     } finally {
       setIsLoading(false)
@@ -270,6 +191,12 @@ export const WalletProvider = ({ children }: WalletProviderProps) => {
     createTrancheTokens,
     investInTranche,
     getAccountBalance,
+    getTokenBalance,
+    supplyToPool,
+    withdrawFromPool,
+    borrowFromPool,
+    repayToPool,
+    getPoolPosition,
     isLoading,
     error
   }
